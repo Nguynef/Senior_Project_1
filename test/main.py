@@ -76,9 +76,11 @@ def index():
         # Kiem tra neu ton tai gia tri 'logged_in' trong session (User da dang nhap)
         # Render file index.html, truyen vao gia tri:
         # user=session['lname']: Gia tri cua lname trong table users
+        # print(session['lname'])
         return render_template('home.html', user=session['lname'], teams=teams(), carousel=carousel())
     # Neu khong ton tai gia tri ['logged_in'] trong session (User chua dang nhap)
     # Render file index.html va khong truyen vao tham so
+    # print(session['lname'])
     return render_template('home.html', teams=teams(), carousel=carousel())
 
 
@@ -173,27 +175,30 @@ def product(id):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        # Neu method la POST, lay gia tri username va password tu html form
+        # If the method is POST, get the username and password values from the HTML form
         username = request.form['username']
         password = request.form['password']
         conn = sqlite3.connect(sqldbname)
         c = conn.cursor()
         c.execute('SELECT * FROM users WHERE username = ? AND password = ?', (username, password))
-        # Tim kiem ban ghi thoa man username va password luu vao bien user
+        # Search for a record that matches the username and password, store it in the variable `user`
         user = c.fetchone()
         if user:
+            session['logged_in'] = True
             session['user'] = True
             session['user_id'] = user[0]
             session['user_username'] = username
-            session['user_lname'] = user[5]
+            session['lname'] = user[5]
             cart = get_cart(user[0])
             session['cart'] = cart
-            # Neu ton tai user, tao cac gia tri session can thiet va redirect ve index
+            print(session)
+            
+            # If the user exists, set the necessary session values and redirect to index
             return redirect(url_for('index'))
         else:
-            # Neu khong ton tai user, hien thong bao va yeu cau nhap lai
+            # If the user does not exist, show a message and ask to re-enter
             return render_template('login-form.html', error='Invalid username or password')
-    # Neu method la GET, render file login-form.html
+    # If the method is GET, render the login-form.html file
     return render_template('login-form.html')
 
 
@@ -203,7 +208,7 @@ def logout():
     session.pop('user', None)
     session.pop('user_id', None)
     session.pop('user_username', None)
-    session.pop('user_lname', None)
+    session.pop('lname', None)
     # Xoa cac gia tri session va redirect ve index
     return redirect(url_for('index'))
 
@@ -268,7 +273,9 @@ def add_to_cart():
     # Lay cac gia tri product_id, quantity tu html form
     product_id = int(request.form['productId'])
     quantity = int(request.form['quantity'])
+    print(product_id, quantity)
     # Cap nhat cart
+    print(session)
     cart = session.get('cart', [])
     check = False
     conn = sqlite3.connect(sqldbname)
@@ -340,7 +347,7 @@ def view_cart():
     else:
         # Neu khong ton tai gia tri 'logged_in' trong session (User chua dang nhap)
         # Redirect ve trang login va hien thong bao yeu cau dang nhap de xem gio hang
-        return render_template('login-form.html', cartError=True)
+        return render_template('templates/login-form.html', cartError=True)
 
 
 # Ham check_admin dung de kiem tra tai khoan admin da duoc dang nhap chua
@@ -360,6 +367,7 @@ def admin_view():
     # Goi ham check admin de kiem tra session
     if check_admin():
         # Render file adminView.html, truyen vao gia tri cua session['lname']
+        print(session)
         return render_template('adminView.html', admin=session['admin_lname'])
     else:
         # Redirect ve trang dang nhap admin
