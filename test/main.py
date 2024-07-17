@@ -72,16 +72,12 @@ def carousel():
 # Dinh tuyen ham index cho url '/'
 @app.route('/', methods=['GET'])
 def index():
-    if 'logged_in' in session:
-        # Kiem tra neu ton tai gia tri 'logged_in' trong session (User da dang nhap)
+    if 'user' in session:
         # Render file index.html, truyen vao gia tri:
         # user=session['lname']: Gia tri cua lname trong table users
-        # print(session['lname'])
-        return render_template('home.html', user=session['lname'], teams=teams(), carousel=carousel())
-    # Neu khong ton tai gia tri ['logged_in'] trong session (User chua dang nhap)
-    # Render file index.html va khong truyen vao tham so
-    # print(session['lname'])
-    return render_template('home.html', teams=teams(), carousel=carousel())
+        return render_template('index.html', user=session['user_lname'], teams=teams(), carousel=carousel())
+    else:
+        return render_template('index.html', teams=teams(), carousel=carousel())
 
 
 # Ham teams dung de hien lay ra cac record tu table teams
@@ -144,6 +140,7 @@ def search():
     products = c.fetchall()
     # Render file search.html, truyen vao gia tri cua bien products da duoc bien doi thanh dictionary
     return render_template('search.html', items=result_to_dict(products))
+
 
 
 # Dinh tuyen ham product cho url '/product/id' VD: '/product/1/
@@ -300,6 +297,7 @@ def add_to_cart():
         conn.close()
     # Cap nhat lai cart
     session['cart'] = get_cart(session['user_id'])
+    print(session)
     msg = 'added'
     return msg
 
