@@ -450,13 +450,18 @@ def view_cart():
 
 @app.route('/checkout', methods=['GET', 'POST'])
 def checkout():
+    # Kiểm tra xem người dùng có đăng nhập và giỏ hàng có sản phẩm hay không
     if 'user' in session and len(session.get('cart')) > 0:
         conn = sqlite3.connect(sqldbname)
         c = conn.cursor()
+
+        # Nếu phương thức của request là POST
         if request.method == 'POST':
+            # Lấy ID mới cho đơn hàng và ID người dùng
             order_id = get_max_id('order')
             user_id = session['user_id']
 
+            # Lấy dữ liệu từ request JSON
             req = request.get_json()
             fname = req['fname']
             lname = req['lname']
@@ -467,9 +472,11 @@ def checkout():
             payment = req['payment']
             total = req['total']
 
+            # Lấy danh sách sản phẩm và số lượng từ giỏ hàng của người dùng
             c.execute('SELECT productId, quantity FROM cart WHERE userId = ?', (user_id,))
             order = c.fetchall()
 
+            # Tạo danh sách ID sản phẩm và số lượng
             list_id = []
             list_quantity = []
             for i in range(len(order)):
@@ -478,26 +485,43 @@ def checkout():
             list_id = str(list_id)[1:-1]
             list_quantity = str(list_quantity)[1:-1]
 
+            # Xóa giỏ hàng của người dùng
             c.execute('DELETE FROM cart WHERE userId = ?', (user_id,))
             conn.commit()
 
+            # Chèn đơn hàng mới vào bảng "order"
             c.execute('INSERT INTO "order" VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
                       (order_id, user_id, list_id, list_quantity, address, phone, payment, fname, lname, note, email,
                        total))
             conn.commit()
+
+            # Trả về JSON với thông báo thành công
             return jsonify({'Msg': 'Success'})
+
         else:
+            # Nếu phương thức của request là GET
             session['cart'] = get_cart(session['user_id'])
             cart = session.get('cart', [])
             user_id = session['user_id']
+
+            # Lấy thông tin liên hệ của người dùng
             c.execute('SELECT phone, email FROM users WHERE userId = ?', (user_id,))
             result = c.fetchone()
             phone = result[0]
             email = result[1]
-            user = {'user_fname': session['user_fname'], 'user_lname': session['user_lname'], 'phone': phone,
-                    'email': email}
+
+            # Tạo đối tượng người dùng với thông tin liên hệ
+            user = {
+                'user_fname': session['user_fname'],
+                'user_lname': session['user_lname'],
+                'phone': phone,
+                'email': email
+            }
+
+            # Trả về trang checkout.html với thông tin người dùng và giỏ hàng
             return render_template('checkout.html', user=user, items=cart)
     else:
+        # Nếu người dùng chưa đăng nhập hoặc giỏ hàng rỗng, chuyển hướng về trang chủ
         return redirect(url_for('index'))
 
 
@@ -614,10 +638,16 @@ def check_none(text):
 
 @app.route('/admin/update/<product_id>', methods=['GET', 'POST'])
 def admin_update(product_id):
+    # Kiểm tra xem người dùng có phải là admin hay không
     if check_admin():
         conn = sqlite3.connect(sqldbname)
+
+    # Tạo con trỏ để thao tác với cơ sở dữ liệu
     c = conn.cursor()
+
+    # Kiểm tra xem phương thức của request là POST hay không
     if request.method == 'POST':
+        # Lấy dữ liệu từ form và kiểm tra xem các giá trị có null hay không
         team = check_none(request.form['team'])
         nation = check_none(request.form['nation'])
         name = request.form['name']
@@ -629,37 +659,57 @@ def admin_update(product_id):
         img2 = request.form['img2']
         img3 = request.form['img3']
         img4 = request.form['img4']
+
+        # Cập nhật thông tin sản phẩm trong bảng products
         c.execute(
             "UPDATE products SET "
             "team = ?, nation = ?, name = ?, price = ?, quantity = ?, sizeTitle = ?, infoTitle = ? "
             "WHERE productId = ?",
             (team, nation, name, price, quantity, size_title, info_title, product_id,)
         )
+
+        # Lưu thay đổi vào cơ sở dữ liệu
         conn.commit()
+
+        # Cập nhật thông tin hình ảnh trong bảng images
         c.execute(
             "UPDATE images SET img1 = ?, img2 = ?, img3 = ?, img4 = ? WHERE productId = ?",
             (img1, img2, img3, img4, product_id,)
         )
+
+        # Lưu thay đổi vào cơ sở dữ liệu
         conn.commit()
+
+        # Đóng kết nối cơ sở dữ liệu
         conn.close()
+
+        # Chuyển hướng về trang xem admin
         return redirect(url_for('admin_view'))
+
     else:
+        # Nếu phương thức của request là GET
         conn = sqlite3.connect(sqldbname)
         c = conn.cursor()
+
+        # Lấy thông tin sản phẩm từ bảng products
         c.execute(
             "SELECT team, nation, name, price, quantity, sizeTitle, infoTitle FROM products WHERE productId = ?",
             (product_id,)
         )
+
+        # Lưu kết quả vào biến item
         item = c.fetchone()
         result = {
             "id": product_id, "team": item[0], "nation": item[1], "name": item[2], "price": item[3],
             "quantity": item[4], "sizeTitle": item[5], "infoTitle": item[6]
         }
+
+        # Lấy thông tin hình ảnh từ bảng images
         c.execute("SELECT img1, img2, img3, img4 FROM images WHERE productId = ?", (product_id,))
         imgs = c.fetchone()
         img = {"img1": imgs[0], "img2": imgs[1], "img3": imgs[2], "img4": imgs[3]}
-    # return jsonify(result, img)
 
+    # Trả về trang adminUpdate.html với thông tin sản phẩm và hình ảnh
     return render_template('adminUpdate.html', item=result, img=img)
 
 
@@ -684,16 +734,27 @@ def admin_price(product_id):
 
 @app.route('/admin/update/quantity/<product_id>', methods=['POST'])
 def admin_quantity(product_id):
+    # Kiểm tra xem người dùng có phải là admin hay không
     if check_admin():
+        # Lấy dữ liệu JSON từ request
         req = request.get_json()
         new_quantity = req['quantity']
+
+        # Kết nối đến cơ sở dữ liệu
         conn = sqlite3.connect(sqldbname)
         c = conn.cursor()
+
+        # Cập nhật số lượng sản phẩm trong bảng products
         c.execute("UPDATE products SET quantity = ? WHERE productId = ?", (new_quantity, product_id))
+
+        # Lưu thay đổi vào cơ sở dữ liệu
         conn.commit()
+
+        # Tạo phản hồi JSON với thông tin sản phẩm đã cập nhật
         res = make_response(jsonify({"id": product_id, "quantity": new_quantity}))
         return res
     else:
+        # Nếu không phải admin, chuyển hướng về trang đăng nhập admin
         return redirect(url_for('admin_login'))
 
 
@@ -715,10 +776,15 @@ def admin_delete(product_id):
 
 @app.route('/admin/add', methods=['GET', 'POST'])
 def admin_add():
+    # Kiểm tra xem người dùng có phải là admin hay không
     if check_admin():
+        # Kết nối đến cơ sở dữ liệu
         conn = sqlite3.connect(sqldbname)
         c = conn.cursor()
+
+        # Nếu phương thức của request là POST
         if request.method == 'POST':
+            # Lấy dữ liệu từ form và kiểm tra giá trị null
             team = check_none(request.form['team'])
             nation = check_none(request.form['nation'])
             name = request.form['name']
@@ -730,33 +796,56 @@ def admin_add():
             img2 = request.form['img2']
             img3 = request.form['img3']
             img4 = request.form['img4']
+
+            # Lấy ID mới cho sản phẩm và hình ảnh
             product_id = get_max_id('products')
             img_id = get_max_id('images')
+
+            # Chèn thông tin sản phẩm mới vào bảng products
             c.execute(
                 "INSERT INTO products VALUES(?,?,?,?,?,?,?,?)",
                 (product_id, team, nation, name, price, quantity, size_title, info_title,)
             )
             conn.commit()
+
+            # Chèn thông tin hình ảnh mới vào bảng images
             c.execute("INSERT INTO images VALUES(?,?,?,?,?,?)", (img_id, product_id, img1, img2, img3, img4))
             conn.commit()
+
+            # Đóng kết nối cơ sở dữ liệu
             conn.close()
+
+            # Chuyển hướng về trang xem admin
             return redirect(url_for('admin_view'))
+
         else:
+            # Nếu phương thức của request là GET, trả về trang adminAdd.html
             return render_template('adminAdd.html')
+    else:
+        # Nếu không phải admin, chuyển hướng về trang đăng nhập admin
+        return redirect(url_for('admin_login'))
 
 
 @app.route('/admin/tracking', methods=['GET'])
 def admin_tracking():
+    # Kiểm tra xem người dùng có phải là admin hay không
     if check_admin():
+        # Kết nối đến cơ sở dữ liệu
         conn = sqlite3.connect(sqldbname)
         c = conn.cursor()
+
+        # Lấy tất cả các đơn hàng từ bảng "order"
         c.execute('SELECT * FROM "order"')
         orders = c.fetchall()
+
+        # Tạo danh sách để lưu trữ thông tin đơn hàng
         items = []
+
         for order in orders:
             lst_name = []
             lst_price = []
 
+            # Kiểm tra xem danh sách sản phẩm có nhiều hơn một sản phẩm hay không
             if ',' in order[2]:
                 lst_id = order[2].split(',')
                 lst_quant = order[3].split(',')
@@ -764,18 +853,21 @@ def admin_tracking():
                 lst_id = [order[2]]
                 lst_quant = [order[3]]
 
+            # Lấy tên và giá sản phẩm từ bảng products
             for product_id in lst_id:
                 c.execute("SELECT name, price FROM products WHERE productId = ?", (product_id,))
                 product = c.fetchone()
                 lst_name.append(product[0])
                 lst_price.append(product[1])
 
+            # Xác định phương thức thanh toán
             payment = ''
             if order[6] == 1:
                 payment = 'CK'
             elif order[6] == 2:
                 payment = 'COD'
 
+            # Tạo dictionary với thông tin đơn hàng
             data = {
                 'orderId': order[0],
                 'productName': lst_name,
@@ -790,29 +882,44 @@ def admin_tracking():
                 'email': order[10],
                 'total': order[11]
             }
+
+            # Thêm dictionary vào danh sách items
             items.append(data)
+
+        # Trả về trang tracking.html với thông tin admin và danh sách đơn hàng
         return render_template('tracking.html', admin=session['admin_lname'], items=items)
     else:
+        # Nếu không phải admin, chuyển hướng về trang đăng nhập admin
         return redirect(url_for('admin_login'))
 
 
 @app.route('/admin/tracking/<order_id>', methods=['GET', 'POST'])
 def admin_tracking_order(order_id):
+    # Kiểm tra xem người dùng có phải là admin hay không
     if check_admin():
+        # Kết nối đến cơ sở dữ liệu
         conn = sqlite3.connect(sqldbname)
         c = conn.cursor()
+
+        # Nếu phương thức của request là POST
         if request.method == 'POST':
+            # Lấy thông tin đơn hàng từ form và xóa đơn hàng từ bảng "order"
             order = request.form['order']
             c.execute('DELETE FROM "order" WHERE orderId = ?', (order,))
             conn.commit()
+
+            # Chuyển hướng về trang admin_tracking
             return redirect(url_for('admin_tracking'))
+
         else:
+            # Nếu phương thức của request là GET, lấy thông tin đơn hàng từ bảng "order"
             c.execute('SELECT * FROM "order" WHERE orderId = ?', (order_id,))
             order = c.fetchone()
 
             lst_name = []
             lst_price = []
 
+            # Kiểm tra xem danh sách sản phẩm có nhiều hơn một sản phẩm hay không
             if ',' in order[2]:
                 lst_id = order[2].split(',')
                 lst_quant = order[3].split(',')
@@ -820,18 +927,21 @@ def admin_tracking_order(order_id):
                 lst_id = [order[2]]
                 lst_quant = [order[3]]
 
+            # Lấy tên và giá sản phẩm từ bảng products
             for product_id in lst_id:
                 c.execute("SELECT name, price FROM products WHERE productId = ?", (product_id,))
                 product = c.fetchone()
                 lst_name.append(product[0])
                 lst_price.append(product[1])
 
+            # Xác định phương thức thanh toán
             payment = ''
             if order[6] == 1:
                 payment = 'CK'
             elif order[6] == 2:
                 payment = 'COD'
 
+            # Tạo dictionary với thông tin đơn hàng
             item = {
                 'orderId': order[0],
                 'productName': lst_name,
@@ -846,8 +956,11 @@ def admin_tracking_order(order_id):
                 'email': order[10],
                 'total': order[11]
             }
+
+            # Trả về trang order.html với thông tin đơn hàng
             return render_template('order.html', item=item)
     else:
+        # Nếu không phải admin, chuyển hướng về trang đăng nhập admin
         return redirect(url_for('admin_login'))
 
 
@@ -867,23 +980,7 @@ def admin_manage():
         return redirect(url_for('admin_login'))
 
 
-# @app.route('/admin/manage/<admin_id>', methods=['GET', 'POST'])
-# def admin_manage_account(admin_id):
-#     if check_admin():
-#         conn = sqlite3.connect(sqldbname)
-#         c = conn.cursor()
-#         if request.method == 'POST':
-#
-#
-#             return
-#         else:
-#             c.execute('SELECT email, firstName, lastName FROM admin WHERE adminId = ?', (admin_id,))
-#             result = c.fetchone()
-#             admin = {'email': result[0], 'firstName': result[1], 'lastName': result[2]}
-#             return render_template('adminManageAccount.html', admin=admin)
-#
-#     else:
-#         return redirect(url_for('admin_login'))
+
 
 
 if __name__ == '__main__':
